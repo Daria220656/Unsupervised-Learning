@@ -1,0 +1,248 @@
+---
+title: "Educational Indicators 2014 - Dimensions Reduction"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Unsupervised Learning - Dimensions Reduction** 
+### *Daria Ivanushenko*            
+
+
+# **Introduction**
+Main goal of this article is to use dimensions reduction methods like MDS, PCA, t-SNE and UMAP. I would like to discuss some of them more precisely. MDS (multidimensional scaling) - is the machine learning approach that used to reduce dimension of the data to show meaningful features of the data. MDS is based on measuring dissimilarities between pairs of elements using euclidean, manhattan and other distances. Method mostly used to reduce dimension of the data in order to be able to plot the data. It is used for example in testing structural hypothesis, exploratory data analysis to help to discover the structure of the data. t-SNE (t-distributed stochastic neighbor embedding) - dimensions reduction algorithm used to visualize the data which is based on Stochastic Neighbor Embedding. This method is able to identify non-linear relationship in data. UMAP is a new machine learning method that is considered to be faster than t-SNE and UMAP is more successful in differentiating each cluster. 
+
+# **Review of the Data set**
+
+Data set used for this project was taken from the [dataset repository](https://www.kaggle.com/denisadutca/education-indicators-2014-worldwide). Dataset has information on different educational indicators across both countries and regions. 
+
+Indicators: 
+
+* Population - **PPT**  
+* GDP - **GDP**  
+* Percentage of repeaters in Primary Education - **PRPE**   
+* Out-of-school children of Primary School - **OOCP**    
+* Enrollment in Secondary Education - **ESE**  
+* Enrollment in Primary Education - **EPE**  
+* Unemployment - **UNEMP**  
+* Life expectancy at birth - **LEB**  
+* Theoretical Duration of Primary Education - **TDP**  
+
+
+``` {r}
+setwd("C:/Users/daria/OneDrive/Desktop/DSBA 1 semester/1 semestr/Unsupervised Learning")
+# loading the data. Working directory was setted before.
+library(readr)
+
+```
+``` {r,message=FALSE}
+data = read_csv("Education Indicators 2014.csv", col_names = TRUE)
+#View(data)
+# dimension of the data
+dim(data)
+# summary statistics. We can notice that our indicators have different scale.
+summary(data)
+# Important to know the data type of the columns.
+str(data)
+
+```
+``` {r,message=FALSE}
+#preparing data for analysis
+countries_regions = data[,1]
+indicators = colnames(data)
+indicators = indicators[ 2:length(indicators)]
+data = as.matrix(data[,2:ncol(data)])
+# normalization of the data, as our indicators have different scales
+library(clusterSim)
+data_nr<-data.Normalization(data, type="n1",normalization="column")
+head(data_nr)
+```
+```{r}
+library(corrplot) 
+library(clusterSim) 
+
+corrr<-cor(data_nr, method="pearson") 
+corrplot(corrr)
+
+```
+
+Correlation plot is showing that some of the indicators are correlated between each other. Enrollment in Secondary Education (ESE) and Enrollment in Primary Education (EPE) are highly correlated with population (PPT) as well as between each other. Life expectancy at birth (LEB) doesn't have any relations with Percentage of repeaters in Primary Education (PRPE).  
+
+# **MDS**
+
+```{r,message=FALSE}
+library(smacof)
+# creating a dissimilarity matrix
+dist_data = dist(t(data_nr))
+mds = smacofSym(dist_data, ndim = 2 )
+library(stats)
+mds1<-cmdscale(dist_data, k=2) #k - the maximum dimension of the space
+summary(mds1)
+
+par(mfrow = c(1,2))
+plot(mds)
+plot(mds1)
+
+```
+
+
+We can say that EPE, PPT, OOCP, GDP and ESE are in the same group hence providing the same information about education in countries. LEB, UNEMP, TDP and PRPE are possibly outliers in data. 
+
+Next step is to check the goodness of MDS fitting the data. 
+
+```{r,message=FALSE}
+library(smacof)
+stress_vector<-randomstress(n=9, ndim=2, nrep=1) 
+mean(stress_vector)
+mds$stress
+ratio<- mds$stress/ mean(stress_vector)
+ratio
+
+```
+
+Due to the scale presented by Kruskal: 0.20 = poor, 0.10 = fair, 0.05 = good, 0.025 = excellent, 0.00 = perfect, one can say that MDS is not the best method for dimension reduction. Value of 0.53 is much higher than 0.2 hence this method should be changed for more appropriate fro the data. 
+
+
+# **t-SNE**
+
+I also would like to demonstrate the results of t-SNE dimensions reduction method. In order to use this method we need to have matrix of distances as well, but allocation of the elements into clusters is calculated with help of t-Student distribution. 
+
+One of the feature of t-SNE function are tunable parameters that can change our output significantly.
+
+* **Perplexity** - assumptions about closest neighbors of the data point. In R help it is said that it should be less than (size(dis)-1) /3. In our case it is up to 11 element. Most of the articles are suggesting that perplexity should be in range 5-50, but I think that it depends on the density of data. In case of our data I will use perplexity lower than suggested because our dataset is not large enough.     
+* **eta** - learning rate. It is suggested that learning rate should be in range (10, 1000).     
+* **itr** - iteration. Maximum number of iterations to optimize clustering. It should starts from 250 iterations, as algorithm can stop before reaching stability.  
+
+```{r, message=FALSE}
+library(labdsv)
+tsnee1 = tsne(dist_data, perplexity = 1, eta = 500)
+
+plot(tsnee1)
+
+text(tsnee1$points[,1], tsnee1$points[,2], indicators, cex=0.7, pos=4, col="red")
+
+```
+
+
+```{r, message=FALSE}
+library(labdsv)
+tsnee2 = tsne(dist_data, perplexity = 2, eta = 1000)
+ 
+plot(tsnee2)
+ 
+text(tsnee2$points[,1], tsnee2$points[,2], indicators, cex=0.7, pos=4, col="red")
+```
+
+Having a value of 1 and 2 for hyperparameter, we can notice that TDP and PRPE could create a separate cluster from the rest of the indicators. With the values of the perplexity lower than 5, we can say that local variations are dominating making it difficult to distinguish clusters comparing to first graph. On the first graph we can clearly separate observations into two clusters.
+
+# **PCA** 
+
+Before conducting PCA I want to check how many dimensions should be used. To understand this I will make scree plot which describes percentage of explained variances by each of the components.   
+
+```{r,message=FALSE}
+pca <- prcomp(data_nr, center=FALSE, scale=FALSE)
+summary(pca)
+# scree plot 
+library(factoextra)
+fviz_eig(pca, addlabels = TRUE)
+```
+
+3 components will describe 81% of the variation in data.
+
+```{r, message=FALSE}
+#variable correlation plot 
+fviz_pca_var(pca)
+
+```
+
+EPE, PPT, ESE and GDP are grouped together. Quality of the variable and its impact on the describing our data is represented by the distance from the origin. Previously mentioned variables are allocated far from the origin thus they are describing major part of the variation in data. Variable UNEMP doesn't have a big impact on describing the variation of the data, so it shouldn't be considered in the future analysis. PRPE and LEB have negative impact on the data as they are located opposite to the rest of the variables. 
+
+```{r, message=FALSE}
+library(gridExtra)
+ind<-get_pca_ind(pca)  
+
+var<-get_pca_var(pca)
+a<-fviz_contrib(pca, "var", axes=1, xtickslab.rt=90)
+b<-fviz_contrib(pca, "var", axes=2, xtickslab.rt=90)
+c<-fviz_contrib(pca, "var", axes=3, xtickslab.rt=90) 
+grid.arrange(a,b,c, top='Contribution to the first three Principal Components')
+```
+
+On the above graphs we can see variables that contributes the most to the each PCA element. I plotted contributions of the individual variables for the each of the 3 dimensions. EPE, PPT, ESE, OOCD and GDP are the main components in PCA 1 element. PPRE and LEB contributes the most to the PCA 2 and UNEMP variable is main one in PCA 3. 
+
+
+## **Complexity**
+
+```{r, message=FALSE}
+library(psych)
+pca2<-principal(data_nr, nfactors=3, rotate="varimax")
+
+plot(pca2$complexity)
+text(pca2$complexity, labels = indicators)
+```
+
+OOCP and TDP are characterized to have a high complexity. 
+
+## **Uniqueness**
+
+```{r, message=FALSE}
+library(psych)
+
+plot(pca2$uniquenesses)
+text(pca2$uniquenesses, labels = indicators)
+```
+
+PPT, ESE, EPE and UNEMP are considered to have a low level of uniqueness.  
+
+# **UMAP**
+
+In order to perform umap dimension reduction I prepared new data with classification for the following regions: Africa, Arab, South America, North America, Europe. I needed it in order to plot the results after UMAP method. Umap is mainly used for larger datasets, so
+it could be difficult to show all the options. 
+
+```{r, message=FALSE}
+library(umap)
+library(ggplot2)
+library(clusterSim)
+
+x = read_csv("Book1.csv", col_names = TRUE)
+countries = x[,1]
+regions = x[, 11]
+x_final = as.matrix(x[,2:10])
+
+# we need to normalize data in order to perform clustering to compare the results before and after using UMAP method.
+x_nr = data.Normalization(x_final, type = "n1", normalization = "column")
+
+# for umap method we do not need to normalize the data, so we are proceeding with x_final data.
+df = umap(x_final)
+
+
+results = data.frame(x = df$layout[,1],
+                     y = df$layout[,2],
+                     regions_2 = x[,11])
+
+
+ggplot(results, aes(x = x, y = y, col = Regions)) + geom_point()
+```
+From the graph we can notice 5 groups of the countries creating 5 clusters depending on the indicators that were taken into account. Interesting that Umap classified countries from difernt regions into different clusters. However, we can notice some tendency in the lower part of the graph where we can find countries from Asia, Europe and South America. Probably could be developing countries. In the upper part we can find cluster containing mainly African countries which probably could be interpreted as poor countries. In the middle righ part of the graph we can notice the group of countries from North America, Europe and some African and Asian countries. It can be the group of developed countries. 
+
+##  **Clastering**
+
+```{r, message = FALSE}
+km1 = eclust(x_nr, "kmeans", hc_metric = "eucledian", k = 3, graph = FALSE)
+a1 = fviz_silhouette(km1)
+b1 = fviz_cluster(km1, data = data, elipse.type = "convex", main = "K-means/before") + theme_minimal()
+grid.arrange(a1, b1, ncol = 2)
+
+km2 = eclust(results[,1:2], "kmeans", hc_metric = "eucledian", k = 3, graph = FALSE)
+a2 = fviz_silhouette(km2)
+b2 = fviz_cluster(km2, data = data, elipse.type = "convex", main = "K-means/after") + theme_minimal()
+grid.arrange(a2, b2, ncol = 2)
+```
+
+
+From the graphs we can see that clustering after dimensions reduction method (UMAP) results are much better taking into consideration silhouette statistics (before - 0.32, after - 0.66).

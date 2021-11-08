@@ -1,0 +1,243 @@
+
+---
+title: "Perfume data set - cluster analysis"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+
+
+## **Unsupervised Learning - Clustering** 
+### *Daria Ivanushenko*   
+
+
+
+
+
+## **Introduction**
+
+This paper is describing the strength of fragrance of 20 different perfumes. Data was obtained by using a handheld odor meter (OMX-GR sensor) per second for 28 seconds period. It is interesting to compare perfumes of famous brands and to see the difference between them. Below I will provide some some technical explanations about the way odometer works and why it was chosen for this experiment. 
+
+Odor meter (olfactometer) - special equipment used to detect and measure odor dilution. Indicates the relative strength and odor classification numerically by comparing odor gas and purified air. 
+
+## **Review of the Data set**
+
+``` {r}
+setwd("C:/Users/daria/OneDrive/Desktop/datasets")
+# loading the data. Working directory was setted before.
+library(readxl)
+perfume_data <- read_excel("perfume_data.xlsx")
+```
+
+Data set used for this project was taken from the [dataset repository](https://archive.ics.uci.edu/ml/datasets/Perfume+Data). Data consist of names of the 20 perfumes and 28 time periods (T1-T28) each fragrance was measured - each second new measurement. Below you can find firs 5 rows of the data, dimension of the data frame and summary for each of the observations.  
+
+
+```{r}
+head(perfume_data)
+summary(perfume_data)
+dim(perfume_data)
+```
+
+## **Preparation of Data**
+
+In order to perform clustering analysis we need to remove first column of our data set, as it consists string values. 
+
+```{r}
+data = perfume_data[2:29]
+names = perfume_data[,1]
+# Now we have 28 columns
+dim(data)
+head(data)
+```
+## **Clustering tendency**
+
+Before starting with cluster analysis I would like to conduct a Hopkins test to asses the clustering tendency of the data set. Null hypothesis is telling us that data is uniformly randomly distributed and no cluster could be defined. 
+Data is highly clustered when Hopkins statistics is close to 1. 
+
+```{r, message=FALSE}
+library(factoextra)
+```
+
+```{r}
+get_clust_tendency(data, 2, graph=TRUE, gradient=list(low="red", mid="white", high="blue"))
+```
+
+As value of 0.8102679 is close to 1 proves us that perfume data set is highly clusterable.
+
+Due to the small sample the graph is not so clear and accurate but blocks of colors are visible on the plot and data seems to be ordered which can be a sign of finding clusters in data set. 
+
+## **Optimal number of cluster**
+
+In this chapter I would like to show the results of silhouette method to identify optimal number of clusters.I decided to use Silhouette method, as it is the most often used by other researchers.
+
+
+Optimal numbers of clusters is choosing by the highest silhouette statistics. 
+
+* Optimal number of clusters for k-means method: 3  
+* Optimal number of clusters for pam method: 2  
+* Optimal number of clusters for hierarchical methods: 5  
+
+```{r, message=FALSE}
+library(FunCluster)
+library(cluster)
+library(NbClust)
+library(gridExtra)
+```
+
+```{r}
+k1 = fviz_nbclust(data, FUNcluster = kmeans, method = "silhouette") + theme_minimal()
+k1
+k2 = fviz_nbclust(data, FUNcluster = cluster::pam, method = "silhouette") + theme_minimal()
+k2
+k3 = fviz_nbclust(data, FUNcluster = hcut, method = "silhouette") + theme_minimal()
+k3
+```
+
+## **K-Means Clustering**
+
+```{r, message=FALSE}
+library(gridExtra)
+```
+
+```{r}
+km1 = eclust(data, "kmeans", hc_metric = "eucledian", k = 3, graph = FALSE)
+a1 = fviz_silhouette(km1)
+b1 = fviz_cluster(km1, data = data, elipse.type = "convex", main = "K-means/3 clusters/all data") + theme_minimal()
+grid.arrange(a1, b1, ncol=2)
+```
+
+To sum up, we divided our data into 3 clusters where green contains frangrances with the less perciptable odor, the odor of the fragrances in the red cluster perceived as very strong and the rest is in the blue cluster.
+
+Graphs above showed that the average silhouette statistics in the cluster 2 is lower comparing to other 2 clusters. Average silhouette for cluster 2 is 0.31 means that elements are poorly matched to their own cluster. It can indicate that clustering configuration can have too few or too many clusters. 
+
+To understand whether changing of number of clusters can help me to get better results, I decided to cluster our data into 4 clusters this time. 
+
+```{r}
+km2 = eclust(data, "kmeans", hc_metric = "eucledian", k = 4, graph = FALSE)
+a2 = fviz_silhouette(km2)
+b2 = fviz_cluster(km2, data = data, elipse.type = "convex", main = "K-means/4 clusters/all data") + theme_minimal()
+grid.arrange(a2, b2, ncol = 2)
+```
+
+Clustering a data into 4 clusters is showing that 12th observations seems to be an outlier. In the next step I will make clustering without 12th element, as it could be one of the reason for low silhouette statistics.   
+
+```{r}
+km3 = eclust(data[-12,], "kmeans", hc_metric = "eucledian", k = 4, graph = FALSE)
+a3 = fviz_silhouette(km3)
+b3 = fviz_cluster(km3, data = data, elipse.type = "convex", main = "K-means/4 clusters/eucledian") + theme_minimal()
+grid.arrange(a3, b3, ncol = 2)
+```
+
+
+After removing outlier from our data which is the cause of poorly matched elements average silhouette is higher now. 
+
+
+
+## **PAM clustering**
+```{r}
+cm1 = eclust(data, "pam", k = 2, graph = FALSE)
+pam1 = fviz_silhouette(cm1)
+pam2 = fviz_cluster(cm1, data = data, elipse.type = "convex", main = "PAM/2 clusters/all data") + theme_minimal()
+grid.arrange(pam1, pam2, ncol = 2)
+```
+
+Taking into account results from the silhouette statistics, Pam clustering was executed for 2 clusters. PAM method gives good results but it is worth to to execute PAM method without outlier.  
+
+
+```{r}
+cm2 = eclust(data, "pam", k = 4, graph = FALSE)
+pam3 = fviz_silhouette(cm2)
+pam4 = fviz_cluster(cm2, data = data, elipse.type = "convex", main = "PAM/4 clusters/all data") + theme_minimal()
+grid.arrange(pam3, pam4, ncol = 2)
+```
+
+```{r}
+cm3 = eclust(data[-12,], "pam", k = 2, graph = FALSE)
+pam5 = fviz_silhouette(cm3)
+pam6 = fviz_cluster(cm3, data = data[-12,], elipse.type = "convex", main = "PAM/4 clusters") + theme_minimal()
+grid.arrange(pam5, pam6, ncol = 2)
+```
+
+12th observation on the "PAM/4cluster/all data" plot seems to behave abnormally to the rest of the data. Taking a glance into data one more time, is showing that 12th observation (solidmusk) has low values comparing to others. Removing one of the observations from the dataset can improve our results. Our average silhouette statistics is higher.  
+
+## **Hierarchical Clustering**
+
+```{r}
+library(stats)
+library(ClustGeo)
+d = dist(data)
+hc = hclust(d, method = "complete")
+plot(hc, main = "Cluster Dendogram - complete method")
+rect.hclust(hc, k = 5)
+
+#checking the quality of the partitioning. 
+inertia = matrix(0, 4, 2)
+cl_5 = cutree(hc, k=5)
+cl_2 = cutree(hc, k = 2)
+options("scipen"=100, "digits"=4)
+```
+
+One can see from the dendogram that 12th observation could be an outlier in our dataset, as it is not belong to any of the predefined clusters. Therefore, the same procedure will be done on the data with omitting 12th observation, as it is not included in the initial clustering. Dendogram could be a good tool to make a pre-analysis before trying any clustering algorithms, as we can see the whole picture of our data. 
+
+```{r}
+d = dist(data[-12,])
+hc = hclust(d, method = "complete")
+plot(hc, main = "Cluster Dendogram - complete method")
+rect.hclust(hc, k = 6)
+
+#checking the quality of the partitioning. 
+inertia = matrix(0, 4, 3)
+cl_5 = cutree(hc, k = 5)
+cl_2 = cutree(hc, k = 2)
+cl_6 = cutree(hc, k = 6)
+options("scipen"=100, "digits"=4)
+
+inertia[1, 1] = withindiss(d, cl_5)
+inertia[2, 1] = inertdiss(d)
+inertia[3, 1]<-inertia[1,1]/ inertia[2,1]
+inertia[4, 1]<-1-inertia[3,1]	
+
+inertia[1, 2] = withindiss(d, cl_6)
+inertia[2, 2] = inertdiss(d)
+inertia[3, 2]<-inertia[1,2]/ inertia[2,2]
+inertia[4, 2]<-1-inertia[3,2]	
+
+inertia[1, 3] = withindiss(d, cl_2)
+inertia[2, 3] = inertdiss(d)
+inertia[3, 3]<-inertia[1,3]/ inertia[2,3]
+inertia[4, 3]<-1-inertia[3,3]
+
+
+colnames(inertia) = c("5 clusters", "6 clusters", "2 cluster")
+rownames(inertia) = c("intra-clust", "total", "percentage", "Q")
+inertia
+```
+
+After executing hierarchical clustering on the data excluding 12th observation, we can notice some improvements. I decided to count inertia for 6, 5 and 2 clusters. Partitioning into 6 clusters could improve our results. In case of partitioning into 6 clusters, within-clusters diversity is almost 3% and inter clusters diversity is 97% comparing to the results from 5 clusters partitioning where 4% and 96% respectively. 
+
+
+
+## **Model-Based clustering in R**
+```{r, message=FALSE}
+library(mclust)
+mc = Mclust(data)
+summary(mc)
+fviz_mclust(mc, "classification", geom = "point", 
+            pointsize = 1.5, palette = "jco")
+```
+
+Model-based clustering assumes that our data comes from the specific distributions. The algorithms of the function is trying to fits different distributions to the the data and as a results each cluster will be fitted to different distribution, as it is assumed that observations are coming from different distributions.  Comparing to previous methods it tries to measure the probability of belonging of each observation to the cluster. After computing model-based clustering we can notice that our data is not clustered well, as it is probably comes from the same distribution. So, only few point are clustered into two clusters. From the summary of the function we can see that spherical, equal volume model was fitted to the data with 9 clusters in total. I think small sample of 20 observations makes it difficult to analyze the this method. Graph shows that we discovered 9 models from which data was generated. We can see two bigger clusters (1 and 5) that are represented in the form of the ellips.
+
+
+## **Statistics in clustered groups**
+
+```{r,message=FALSE}
+library(flexclust)
+d1<-cclust(data[-12,], 4, dist="euclidean") 
+stripes(d1)
+```
+
+
+From the graph we can say that in 3rd cluster our fragrances are the most distant from centroid within given cluster. First and second clusters consist of 3 observations only.Observations in the first cluster are very distant from the centroid.  

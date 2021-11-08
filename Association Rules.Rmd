@@ -1,0 +1,107 @@
+---
+title: "Association Rules"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Unsupervised Learning - Association Rules** 
+### *Daria Ivanushenko*            
+
+# **Review of the Data set**
+
+Dataset is taken form the [dataset repository](https://www.kaggle.com/aswhinchander/market-basket-analysist). It contains information on conducted transactions and items that were purchased. Data set contains 1862 transactions and 12 unique items to purchase.
+
+```{r, message=FALSE}
+library(arules)
+transactions = read.transactions("transaction_data.csv", sep = ",", header = T, skip = 0, format = "basket")
+transactions
+inspect(head(transactions))
+length(transactions)
+```
+
+```{r, message=FALSE}
+itemFrequency(transactions, type="absolute")
+itemFrequencyPlot(transactions, topN=12, type="relative", main="Item Frequency") 
+```
+
+From the above graph we can say that frozen meals, butter and baking powder creating top 3 purchased products.
+
+
+# **Association Rules**
+
+We are creating rules in our datasets with Apriori Algorithm.
+
+```{r, message=FALSE}
+rules.trans = apriori(transactions, parameter=list(supp=0.1, conf=0.5))
+rules.trans
+```
+
+Here we can see that 31 rules were created.
+
+```{r, message=FALSE}
+rules.trans2 = apriori(transactions, parameter=list(supp=0.05, conf=0.5))
+rules.trans2
+```
+
+We can imply that the lower the support the higher number of rules to analyze we have to.I deciedd to stick with 31 rules.
+
+```{r, message=FALSE}
+rules.by.conf = sort(rules.trans, by="confidence", decreasing=TRUE)
+inspect(head(rules.by.conf))
+```
+
+Confidence is telling us the frequency of appearing item rhs in customer basket given the fact that item lhs is already there. The highest value confidence can take is 1 means that customer will always purchase item rhs together with item lhs. We can say that most probably customer will buy frozen meals having coffee, baking powder, fish and butter. 
+
+```{r, message=FALSE}
+rules.by.lift = sort(rules.trans, by="lift", decreasing=TRUE) 
+inspect(head(rules.by.lift))
+```
+
+Lift is telling us about the frequency of purchasing product lhs and rhs together that separately. From the output we can say that fish, frozen meals and coffee are twice (lift is equal for 1.951) likely to be purchased together than separately. Value of lift higher than 1 implies that products are more likely to be purchased together that separately, value of lift less that 1 means that products are more likely to be bought separately.
+
+```{r, message=FALSE}
+rules.by.count = sort(rules.trans, by="count", decreasing=TRUE) 
+inspect(head(rules.by.count))
+```
+
+Count shows the number of transactions for each fo the combinations of the items. The most purchased are frozen meals and combination of frozen meals and coffee.
+
+```{r, message=FALSE}
+rules.by.supp = sort(rules.trans, by="support", decreasing=TRUE) 
+inspect(head(rules.by.supp))
+```
+
+Support is telling us how many times certain set of items appeared in out dataset. The highest support is around 54% for frozen meals meaning that only frozen meals were bought around 1000 times. We can notice that frozen meals appears in all transactions with the highest score of the support.
+
+# **Graphical Ilustration**
+
+With the help of arulesViz package I will produce graphical illustration of the rules. I decided to create a smaller sample of rules with top 5 rules for the highest lift and provided graphical analysis. Idea of cutting the sample provided easier understanding of the graphs.
+
+```{r, message=FALSE}
+rules_5 <- head(rules.trans, n = 5, by = "lift")
+```
+
+```{r, message=FALSE}
+library(arulesViz)
+plot(rules_5, method="graph")
+```
+
+This graph illustrates rules we produced with apriori algorithm with support equal to 10%. Graphs shows the relationships of the items in our dataset. Size of the circle represents support and color shows the lift.
+
+```{r, message=FALSE}
+plot(rules.trans, method = "paracoord")
+```
+
+Parallel coordinates plots is another variation of the graphical representation of the association rules. Color intensity is confidence and width of the arrow is support. [Source](https://cran.r-project.org/web/packages/arulesViz/vignettes/arulesViz.pdf).
+
+Another great way of plotting association rules was found at [Data Camp](https://www.datacamp.com/community/tutorials/market-basket-analysis-r). Its an interactive version of previous plots and I think its great for plotting big numbers of rules. You can use dropdown list to filter be association rule, item name and item id. Also, you can zoom in the plot which helps to understand better the relationships.  
+
+```{r}
+plot(rules.trans, method = "graph",  engine = "htmlwidget")
+```
